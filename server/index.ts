@@ -44,7 +44,7 @@ async function startServer() {
   });
 
   // =========================
-  // ROTAS DE API
+  // ROTAS DE API (SEMPRE ANTES DO FRONT)
   // =========================
   registrarRotasDeAgenda(app);
   registrarRotasAdmin(app);
@@ -52,27 +52,36 @@ async function startServer() {
   // =========================
   // FRONTEND (SPA)
   // =========================
-  const staticPath =
-    process.env.NODE_ENV === "production"
-      ? path.resolve(__dirname, "..", "frontend")
-      : path.resolve(__dirname, "..", "dist", "frontend");
+  const staticPath = path.resolve(__dirname, "..", "frontend");
 
-  if (fs.existsSync(staticPath)) {
-    app.use(express.static(staticPath));
+  // ⬆️ ERRADO
+  // const staticPath = path.resolve(__dirname, "..", "frontend");
 
-    // SPA fallback — SEMPRE POR ÚLTIMO
+  // ⬇️ CERTO (Docker copia dist/frontend)
+  const frontendPath = path.resolve(__dirname, "..", "frontend");
+  const distFrontendPath = path.resolve(__dirname, "..", "frontend");
+
+  const finalStaticPath = fs.existsSync(
+    path.resolve(__dirname, "..", "frontend")
+  )
+    ? path.resolve(__dirname, "..", "frontend")
+    : path.resolve(__dirname, "..", "dist", "frontend");
+
+  if (fs.existsSync(finalStaticPath)) {
+    app.use(express.static(finalStaticPath));
+
     app.get("*", (_req, res) => {
-      res.sendFile(path.join(staticPath, "index.html"));
+      res.sendFile(path.join(finalStaticPath, "index.html"));
     });
   }
 
   // =========================
   // START SERVER
   // =========================
-  const port = process.env.PORT || 3000;
+  const port = Number(process.env.PORT) || 3000;
 
-  server.listen(port, () => {
-    console.log(`🚀 Server running on http://localhost:${port}`);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`🚀 Server running on port ${port}`);
   });
 }
 
