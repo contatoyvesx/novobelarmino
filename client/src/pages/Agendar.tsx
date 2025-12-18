@@ -80,11 +80,12 @@ export default function Agendar() {
 
         setHorarios(lista);
 
-        if (lista.length === 0) {
-          setMensagemErro(
-            "Nenhum horário disponível para esta data. Tente outro dia."
-          );
-        }
+  {!loading && horarios.length === 0 && (
+    <p className="text-gray-400 text-sm">
+      Nenhum horário disponível para esta data.
+    </p>
+  )}
+
       } catch {
         setMensagemErro("Erro ao buscar horários.");
       } finally {
