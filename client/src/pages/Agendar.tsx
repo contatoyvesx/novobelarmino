@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
 import { Checkbox } from "@/components/ui/checkbox";
-
 import { cn } from "@/lib/utils";
 
 const formatDatePtBr = (date: Date) =>
@@ -27,8 +25,7 @@ export default function Agendar() {
   const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   const BARBEIRO_ID = "be3c5248-746f-44ed-8b3c-73ca71a40703";
-  const API_URL =
-    import.meta.env.VITE_API_URL || "https://api-belarmino.yvesx.com.br/api";
+  const API_URL = import.meta.env.VITE_API_URL || "";
 
   const servicos = useMemo(
     () => [
@@ -49,12 +46,11 @@ export default function Agendar() {
   }, [selectedDate]);
 
   const toggleServico = (servico: string) => {
-    setServicosSelecionados((prev) => {
-      if (prev.includes(servico)) {
-        return prev.filter((item) => item !== servico);
-      }
-      return [...prev, servico];
-    });
+    setServicosSelecionados((prev) =>
+      prev.includes(servico)
+        ? prev.filter((s) => s !== servico)
+        : [...prev, servico]
+    );
     setMensagemErro("");
     setMensagemSucesso("");
   };
@@ -62,11 +58,7 @@ export default function Agendar() {
   const servicosFormatados = servicosSelecionados.join(", ");
 
   async function buscarHorarios(data = selectedDate) {
-    if (!data) {
-      setMensagemErro("Escolha uma data para ver os horários disponíveis.");
-      setHorarios([]);
-      return;
-    }
+    if (!data) return;
 
     setLoading(true);
     setMensagemErro("");
@@ -80,24 +72,23 @@ export default function Agendar() {
           data
         )}&barbeiro_id=${BARBEIRO_ID}`
       );
-      const json = await res.json();
 
-      if (json.horarios) {
-        setHorarios(json.horarios);
-        if (!json.horarios.length) {
-          setMensagemErro("Nenhum horário disponível para esta data. Tente outro dia.");
-        }
-      } else {
-        setHorarios([]);
+      const json = await res.json();
+      const lista = Array.isArray(json) ? json : [];
+
+      setHorarios(lista);
+
+      if (lista.length === 0) {
         setMensagemErro("Nenhum horário disponível para esta data. Tente outro dia.");
       }
     } catch {
       setMensagemErro("Erro ao buscar horários.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
+  // 🔥 BUSCA AUTOMÁTICA — SEM BOTÃO, SEM DUPLICAÇÃO
   useEffect(() => {
     buscarHorarios(selectedDate);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,20 +110,18 @@ export default function Agendar() {
     setMensagemErro("");
     setMensagemSucesso("");
 
-    const payload = {
-      cliente,
-      telefone,
-      servico: servicosFormatados,
-      data: selectedDate,
-      hora: selectedHora,
-      barbeiro_id: BARBEIRO_ID,
-    };
-
     try {
       const res = await fetch(`${API_URL}/agendar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          cliente,
+          telefone,
+          servico: servicosFormatados,
+          data: selectedDate,
+          hora: selectedHora,
+          barbeiro_id: BARBEIRO_ID,
+        }),
       });
 
       const json = await res.json();
@@ -145,7 +134,7 @@ export default function Agendar() {
           "_blank"
         );
 
-        setMensagemSucesso("Agendamento confirmado com sucesso! Você receberá nosso contato em instantes.");
+        setMensagemSucesso("Agendamento confirmado com sucesso!");
         setCliente("");
         setTelefone("");
         setServicosSelecionados([]);
@@ -154,8 +143,7 @@ export default function Agendar() {
       } else {
         setMensagemErro(json.mensagem || "Erro ao confirmar.");
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       setMensagemErro("Erro ao enviar agendamento.");
     } finally {
       setSubmitting(false);
@@ -165,50 +153,44 @@ export default function Agendar() {
   return (
     <div className="min-h-screen bg-[#140000] text-white p-4">
       <div className="max-w-xl mx-auto space-y-6">
-
         <h1 className="text-4xl font-bold text-center text-[#D9A66A]">
           Agendar Horário
         </h1>
+
         <p className="text-center text-gray-300">
-          Escolha a data, veja os horários livres em tempo real e confirme seu atendimento direto com a nossa equipe.
+          Escolha a data, veja os horários livres e confirme seu atendimento.
         </p>
 
+        {/* DATA */}
         <div className="space-y-2">
-          <label className="text-[#D9A66A] font-semibold text-sm" htmlFor="data-agendamento">
+          <label className="text-[#D9A66A] font-semibold text-sm">
             Data do atendimento
           </label>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              id="data-agendamento"
-              type="date"
-              min={dataHoje}
-              value={selectedDate}
-              onChange={(event) => {
-                setSelectedDate(event.target.value);
-                setMensagemErro("");
-                setMensagemSucesso("");
-              }}
-              className="flex-1 p-3 rounded bg-[#1b0402] border border-[#6e2317] text-white"
-            />
-            <button
-              onClick={() => buscarHorarios(selectedDate)}
-              className="btn-retro w-full sm:w-auto cursor-pointer"
-              disabled={loading}
-            >
-              {loading ? "Buscando..." : "Buscar horários"}
-            </button>
-          </div>
-          <p className="text-xs text-gray-400">
-            Digite a data manualmente ou use o calendário e veja horários em tempo real.
-          </p>
+          <input
+            type="date"
+            min={dataHoje}
+            value={selectedDate}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setMensagemErro("");
+              setMensagemSucesso("");
+            }}
+            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317] text-white"
+          />
         </div>
 
+        {/* HORÁRIOS */}
         <div className="space-y-3">
           <p className="text-[#D9A66A] font-semibold">Horários disponíveis</p>
-          {loading && <p className="text-gray-300 text-sm">Carregando horários...</p>}
+
+          {loading && <p className="text-gray-300 text-sm">Carregando horários…</p>}
+
           {!loading && horarios.length === 0 && (
-            <p className="text-gray-400 text-sm">Nenhum horário listado para esta data. Tente outro dia.</p>
+            <p className="text-gray-400 text-sm">
+              Nenhum horário disponível para esta data.
+            </p>
           )}
+
           {!loading && horarios.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {horarios.map((h) => (
@@ -226,18 +208,20 @@ export default function Agendar() {
               ))}
             </div>
           )}
+
           {selectedHora && (
-            <p className="text-sm text-[#E8C8A3]">Horário escolhido: {selectedHora} - {dataParaExibicao}</p>
+            <p className="text-sm text-[#E8C8A3]">
+              Horário escolhido: {selectedHora} — {dataParaExibicao}
+            </p>
           )}
         </div>
 
-        {/* Serviços */}
+        {/* SERVIÇOS */}
         <div className="space-y-3">
           <p className="text-[#D9A66A] font-semibold">Serviços</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {servicos.map((servico) => {
               const selecionado = servicosSelecionados.includes(servico);
-
               return (
                 <label
                   key={servico}
@@ -251,7 +235,6 @@ export default function Agendar() {
                   <Checkbox
                     checked={selecionado}
                     onCheckedChange={() => toggleServico(servico)}
-                    className="border-[#6e2317] data-[state=checked]:border-[#D9A66A] data-[state=checked]:bg-[#D9A66A]"
                   />
                   <span className="text-[#E8C8A3]">{servico}</span>
                 </label>
@@ -260,49 +243,39 @@ export default function Agendar() {
           </div>
         </div>
 
-        {/* Dados do cliente */}
+        {/* DADOS */}
         <div className="space-y-4">
           <input
             type="text"
             placeholder="Seu nome"
             value={cliente}
-            onChange={(e) => {
-              setCliente(e.target.value);
-              setMensagemErro("");
-              setMensagemSucesso("");
-            }}
-            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317] text-white"
+            onChange={(e) => setCliente(e.target.value)}
+            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
           />
-
           <input
             type="tel"
-            inputMode="tel"
             placeholder="Telefone com DDD"
             value={telefone}
-            onChange={(e) => {
-              setTelefone(e.target.value);
-              setMensagemErro("");
-              setMensagemSucesso("");
-            }}
-            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317] text-white"
+            onChange={(e) => setTelefone(e.target.value)}
+            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
           />
         </div>
 
-        {/* Mensagens */}
-        {mensagemSucesso && (
-          <p className="text-green-400 text-center">{mensagemSucesso}</p>
-        )}
+        {/* MENSAGENS */}
         {mensagemErro && (
           <p className="text-red-400 text-center">{mensagemErro}</p>
         )}
+        {mensagemSucesso && (
+          <p className="text-green-400 text-center">{mensagemSucesso}</p>
+        )}
 
-        {/* Confirmar */}
+        {/* CONFIRMAR */}
         <button
           onClick={confirmarAgendamento}
-          className="btn-retro w-full cursor-pointer disabled:opacity-60"
+          className="btn-retro w-full disabled:opacity-60"
           disabled={submitting || loading}
         >
-          {submitting ? "Enviando..." : "Confirmar Agendamento"}
+          {submitting ? "Enviando…" : "Confirmar Agendamento"}
         </button>
       </div>
     </div>
