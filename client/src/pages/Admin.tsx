@@ -35,12 +35,19 @@ function AdminLogin({ onLogin }: { onLogin: (t: string) => void }) {
   const [token, setToken] = useState("");
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-black via-[#0f0806] to-black px-4 py-12 text-amber-50">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(217,166,106,0.15),_transparent_45%)]" aria-hidden />
-      <Card className="relative w-full max-w-md space-y-6 border border-[#6e2317]/70 bg-black/60 p-8 shadow-2xl shadow-black/40">
-        <div className="space-y-2 text-center">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#140000] px-4 py-12 text-amber-50">
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute -left-24 top-10 h-80 w-80 rounded-full bg-[#6e2317]/40 blur-3xl" aria-hidden />
+        <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-[#d9a66a]/20 blur-3xl" aria-hidden />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(217,166,106,0.15),transparent_45%)]" aria-hidden />
+      </div>
+      <Card className="relative w-full max-w-md space-y-6 border border-[#6e2317]/70 bg-black/70 p-8 shadow-2xl shadow-black/50">
+        <div className="space-y-3 text-center">
+          <div className="mx-auto w-40">
+            <img src="/belarmino-logo.png" alt="Belarmino Barbershop" className="w-full drop-shadow-[0_0_25px_rgba(217,166,106,0.35)]" />
+          </div>
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#d9a66a] to-[#8c4b2f] text-black shadow-lg">
-            <LockKeyhole className="h-6 w-6" />
+            <LockKeyhole className="h-6 w-6" aria-hidden />
           </div>
           <h2 className="text-2xl font-black">Área do Barbeiro</h2>
           <p className="text-sm text-amber-200/80">Digite a senha para acessar o painel de horários.</p>
@@ -204,8 +211,13 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0503] text-amber-50">
-      <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 lg:px-8">
+    <div className="relative min-h-screen overflow-hidden bg-[#140000] text-amber-50">
+      <div className="pointer-events-none absolute inset-0 opacity-70">
+        <div className="absolute -left-24 top-10 h-80 w-80 rounded-full bg-[#6e2317]/40 blur-3xl" aria-hidden />
+        <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-[#d9a66a]/15 blur-3xl" aria-hidden />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(217,166,106,0.12),transparent_45%)]" aria-hidden />
+      </div>
+      <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-6 lg:px-8">
         <AdminHeader online={online} onRefresh={carregarAgendamentos} onLogout={logout} />
 
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-amber-200/70">
