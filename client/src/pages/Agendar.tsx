@@ -14,8 +14,11 @@ const formatDateApi = (date: Date) => date.toISOString().slice(0, 10);
 export default function Agendar() {
   const dataHoje = useMemo(() => formatDateApi(new Date()), []);
   const [selectedDate, setSelectedDate] = useState<string>(dataHoje);
+
   const [horarios, setHorarios] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [jaBuscou, setJaBuscou] = useState(false); // 🔴 CONTROLE CRÍTICO
+
   const [submitting, setSubmitting] = useState(false);
   const [selectedHora, setSelectedHora] = useState("");
   const [cliente, setCliente] = useState("");
@@ -25,7 +28,7 @@ export default function Agendar() {
   const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   const BARBEIRO_ID = "be3c5248-746f-44ed-8b3c-73ca71a40703";
-  const API_URL = import.meta.env.VITE_API_URL || "";
+  const API_URL = import.meta.env.VITE_API_URL || "/api";
 
   const servicos = useMemo(
     () => [
@@ -40,7 +43,6 @@ export default function Agendar() {
   );
 
   const dataParaExibicao = useMemo(() => {
-    if (!selectedDate) return "";
     const parsed = new Date(`${selectedDate}T00:00:00`);
     return Number.isNaN(parsed.getTime()) ? "" : formatDatePtBr(parsed);
   }, [selectedDate]);
@@ -51,8 +53,6 @@ export default function Agendar() {
         ? prev.filter((s) => s !== servico)
         : [...prev, servico]
     );
-    setMensagemErro("");
-    setMensagemSucesso("");
   };
 
   const servicosFormatados = servicosSelecionados.join(", ");
@@ -77,25 +77,18 @@ export default function Agendar() {
 
         const json = await res.json();
         const lista = Array.isArray(json) ? json : [];
-
         setHorarios(lista);
-
-  {!loading && horarios.length === 0 && (
-    <p className="text-gray-400 text-sm">
-      Nenhum horário disponível para esta data.
-    </p>
-  )}
-
       } catch {
         setMensagemErro("Erro ao buscar horários.");
       } finally {
         setLoading(false);
+        setJaBuscou(true); // 🔴 MARCA QUE A PRIMEIRA BUSCA ACONTECEU
       }
     },
-    [API_URL, BARBEIRO_ID]
+    [API_URL]
   );
 
-  // 🔥 BUSCA AUTOMÁTICA — SEM BOTÃO, SEM DUPLICAÇÃO
+  // BUSCA AUTOMÁTICA AO TROCAR A DATA
   useEffect(() => {
     void buscarHorarios(selectedDate);
   }, [buscarHorarios, selectedDate]);
@@ -105,8 +98,7 @@ export default function Agendar() {
       !cliente ||
       !telefone ||
       !servicosSelecionados.length ||
-      !selectedHora ||
-      !selectedDate
+      !selectedHora
     ) {
       setMensagemErro("Preencha todos os campos.");
       return;
@@ -133,13 +125,6 @@ export default function Agendar() {
       const json = await res.json();
 
       if (res.ok && json.status === "confirmado") {
-        const resumo = `Novo agendamento confirmado:\n\n🧔 Cliente: ${cliente}\n📅 Data: ${dataParaExibicao}\n⏰ Hora: ${selectedHora}\n💈 Serviço: ${servicosFormatados}`;
-
-        window.open(
-          `https://wa.me/5511952861321?text=${encodeURIComponent(resumo)}`,
-          "_blank"
-        );
-
         setMensagemSucesso("Agendamento confirmado com sucesso!");
         setCliente("");
         setTelefone("");
@@ -163,35 +148,23 @@ export default function Agendar() {
           Agendar Horário
         </h1>
 
-        <p className="text-center text-gray-300">
-          Escolha a data, veja os horários livres e confirme seu atendimento.
-        </p>
-
-        {/* DATA */}
-        <div className="space-y-2">
-          <label className="text-[#D9A66A] font-semibold text-sm">
-            Data do atendimento
-          </label>
-          <input
-            type="date"
-            min={dataHoje}
-            value={selectedDate}
-            onChange={(e) => {
-              setSelectedDate(e.target.value);
-              setMensagemErro("");
-              setMensagemSucesso("");
-            }}
-            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317] text-white"
-          />
-        </div>
+        <input
+          type="date"
+          min={dataHoje}
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
+        />
 
         {/* HORÁRIOS */}
         <div className="space-y-3">
           <p className="text-[#D9A66A] font-semibold">Horários disponíveis</p>
 
-          {loading && <p className="text-gray-300 text-sm">Carregando horários…</p>}
+          {loading && (
+            <p className="text-gray-300 text-sm">Carregando horários…</p>
+          )}
 
-          {!loading && horarios.length === 0 && (
+          {!loading && jaBuscou && horarios.length === 0 && (
             <p className="text-gray-400 text-sm">
               Nenhum horário disponível para esta data.
             </p>
@@ -214,60 +187,48 @@ export default function Agendar() {
               ))}
             </div>
           )}
-
-          {selectedHora && (
-            <p className="text-sm text-[#E8C8A3]">
-              Horário escolhido: {selectedHora} — {dataParaExibicao}
-            </p>
-          )}
         </div>
 
         {/* SERVIÇOS */}
-        <div className="space-y-3">
-          <p className="text-[#D9A66A] font-semibold">Serviços</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {servicos.map((servico) => {
-              const selecionado = servicosSelecionados.includes(servico);
-              return (
-                <label
-                  key={servico}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border p-3 transition",
-                    selecionado
-                      ? "border-[#D9A66A] bg-[#26100d]"
-                      : "border-[#6e2317] bg-[#1b0402]"
-                  )}
-                >
-                  <Checkbox
-                    checked={selecionado}
-                    onCheckedChange={() => toggleServico(servico)}
-                  />
-                  <span className="text-[#E8C8A3]">{servico}</span>
-                </label>
-              );
-            })}
-          </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {servicos.map((servico) => {
+            const selecionado = servicosSelecionados.includes(servico);
+            return (
+              <label
+                key={servico}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg border p-3",
+                  selecionado
+                    ? "border-[#D9A66A] bg-[#26100d]"
+                    : "border-[#6e2317] bg-[#1b0402]"
+                )}
+              >
+                <Checkbox
+                  checked={selecionado}
+                  onCheckedChange={() => toggleServico(servico)}
+                />
+                <span>{servico}</span>
+              </label>
+            );
+          })}
         </div>
 
-        {/* DADOS */}
-        <div className="space-y-4">
-          <input
-            type="text"
-            placeholder="Seu nome"
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
-          />
-          <input
-            type="tel"
-            placeholder="Telefone com DDD"
-            value={telefone}
-            onChange={(e) => setTelefone(e.target.value)}
-            className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Seu nome"
+          value={cliente}
+          onChange={(e) => setCliente(e.target.value)}
+          className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
+        />
 
-        {/* MENSAGENS */}
+        <input
+          type="tel"
+          placeholder="Telefone com DDD"
+          value={telefone}
+          onChange={(e) => setTelefone(e.target.value)}
+          className="w-full p-3 rounded bg-[#1b0402] border border-[#6e2317]"
+        />
+
         {mensagemErro && (
           <p className="text-red-400 text-center">{mensagemErro}</p>
         )}
@@ -275,11 +236,10 @@ export default function Agendar() {
           <p className="text-green-400 text-center">{mensagemSucesso}</p>
         )}
 
-        {/* CONFIRMAR */}
         <button
           onClick={confirmarAgendamento}
-          className="btn-retro w-full disabled:opacity-60"
-          disabled={submitting || loading}
+          disabled={loading || submitting}
+          className="btn-retro w-full"
         >
           {submitting ? "Enviando…" : "Confirmar Agendamento"}
         </button>
