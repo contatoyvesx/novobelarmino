@@ -109,6 +109,11 @@ function removerOcupados(
 
 function horariosRoute(app: Express) {
   app.get("/api/horarios", async (req: Request, res: Response) => {
+    // 🔴 DESATIVA CACHE
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const parsed = horariosQuerySchema.safeParse(req.query);
 
     // SEMPRE ARRAY
