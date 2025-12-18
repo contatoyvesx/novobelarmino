@@ -134,17 +134,20 @@ export default function Admin() {
     if (!token) return;
     let cancelled = false;
 
-    fetchBarbeiros(token)
-      .then((lista) => {
-        if (!cancelled) setBarbeiros(lista);
-      })
-      .catch((e) => {
-        if (e?.message === "unauthorized") {
-          logout();
-          return;
-        }
-        if (!cancelled) setErro(e.message || "Erro ao carregar barbeiros");
-      });
+fetchBarbeiros(token)
+  .then((lista) => {
+    if (cancelled) return;
+    setErro("");              // 🔴 LIMPA O ERRO
+    setBarbeiros(lista);
+  })
+  .catch((e) => {
+    if (e?.message === "unauthorized") {
+      logout();
+      return;
+    }
+    if (!cancelled) setErro(e.message || "Erro ao carregar barbeiros");
+  });
+
 
     return () => {
       cancelled = true;
