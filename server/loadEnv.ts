@@ -1,29 +1,26 @@
-import fs from "fs";
+import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// Resolve caminho correto em ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadEnvFile() {
-  const envPath = path.resolve(__dirname, "..", ".env");
+// Carrega .env da raiz do projeto
+dotenv.config({
+  path: path.resolve(__dirname, "..", ".env"),
+});
 
-  if (!fs.existsSync(envPath)) return;
+// Fail fast: variáveis obrigatórias
+const requiredEnvs = [
+  "SUPABASE_URL",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "ADMIN_TOKEN",
+];
 
-  const lines = fs.readFileSync(envPath, "utf-8").split(/\r?\n/);
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    const [key, ...rest] = trimmed.split("=");
-    const value = rest.join("=");
-
-    if (key && !(key in process.env)) {
-      process.env[key] = value;
-    }
+for (const key of requiredEnvs) {
+  if (!process.env[key]) {
+    console.error(`❌ Variável de ambiente ausente: ${key}`);
+    process.exit(1);
   }
 }
-
-loadEnvFile();
