@@ -70,7 +70,8 @@ export default function Agendar() {
       const res = await fetch(
         `${API_URL}/horarios?data=${encodeURIComponent(
           data
-        )}&barbeiro_id=${BARBEIRO_ID}`
+        )}&barbeiro_id=${BARBEIRO_ID}`,
+        { cache: "no-store" }
       );
 
       const json = await res.json();
