@@ -20,11 +20,26 @@ export type Barbeiro = {
 
 const DEFAULT_TIMEOUT = 12_000;
 
-function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit & { timeoutMs?: number }) {
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit & { timeoutMs?: number }
+) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), init?.timeoutMs ?? DEFAULT_TIMEOUT);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    init?.timeoutMs ?? DEFAULT_TIMEOUT
+  );
 
-  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+  return fetch(input, {
+    ...init,
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
+}
+
+function authHeader(token: string) {
+  return {
+    "x-admin-token": token,
+  };
 }
 
 export async function pingHealth() {
@@ -35,57 +50,57 @@ export async function pingHealth() {
 
 export async function fetchBarbeiros(token: string) {
   const r = await fetchWithTimeout(`${API}/admin/barbeiros`, {
-    headers: {
-      "x-admin-token": token,
-    },
+    headers: authHeader(token),
   });
 
-  if (r.status === 401) {
-    throw new Error("unauthorized");
-  }
+  if (r.status === 401) throw new Error("unauthorized");
 
   const j = await r.json();
-  if (!r.ok) {
-    throw new Error(j?.mensagem || "Erro ao carregar barbeiros");
-  }
+  if (!r.ok) throw new Error(j?.mensagem || "Erro ao carregar barbeiros");
 
   return (j.barbeiros || []) as Barbeiro[];
 }
 
-export async function fetchAgendamentos(token: string, barbeiroId: string, data: string) {
+export async function fetchAgendamentos(
+  token: string,
+  barbeiroId: string,
+  data: string
+) {
   const r = await fetchWithTimeout(
-    `${API}/admin/agendamentos?data=${encodeURIComponent(data)}&barbeiro_id=${encodeURIComponent(
-      barbeiroId,
-    )}&token=${encodeURIComponent(token)}`
+    `${API}/admin/agendamentos?data=${encodeURIComponent(
+      data
+    )}&barbeiro_id=${encodeURIComponent(barbeiroId)}`,
+    {
+      headers: authHeader(token),
+    }
   );
 
-  if (r.status === 401) {
-    throw new Error("unauthorized");
-  }
+  if (r.status === 401) throw new Error("unauthorized");
 
   const j = await r.json();
-  if (!r.ok) {
-    throw new Error(j?.mensagem || "Erro ao carregar agenda");
-  }
+  if (!r.ok) throw new Error(j?.mensagem || "Erro ao carregar agenda");
 
   return (j.agendamentos || []) as Agendamento[];
 }
 
-export async function atualizarStatus(token: string, id: number, status: Status) {
-  const r = await fetchWithTimeout(`${API}/admin/agendamentos/${id}?token=${encodeURIComponent(token)}`, {
+export async function atualizarStatus(
+  token: string,
+  id: number,
+  status: Status
+) {
+  const r = await fetchWithTimeout(`${API}/admin/agendamentos/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      ...authHeader(token),
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ status }),
   });
 
-  if (r.status === 401) {
-    throw new Error("unauthorized");
-  }
+  if (r.status === 401) throw new Error("unauthorized");
 
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    throw new Error(j?.mensagem || "Erro ao atualizar status");
-  }
+  if (!r.ok) throw new Error(j?.mensagem || "Erro ao atualizar status");
 
   return true;
 }
