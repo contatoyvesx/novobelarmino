@@ -1,264 +1,277 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import AgendaVisual from "@/components/AgendaVisual";
-
-const API = import.meta.env.VITE_API_URL || "/api";
-
-type Status = "pendente" | "confirmado" | "cancelado";
-
-type Agendamento = {
-  id: number;
-  cliente: string;
-  telefone: string;
-  servico: string;
-  data: string;
-  inicio: string;
-  fim: string;
-  status: Status;
-};
-
-type Barbeiro = {
-  id: string;
-  nome: string;
-};
+import AgendamentoDetailsDrawer from "@/components/admin/AgendamentoDetailsDrawer";
+import AgendamentosCards from "@/components/admin/AgendamentosCards";
+import AgendamentosTable from "@/components/admin/AgendamentosTable";
+import AdminHeader from "@/components/admin/AdminHeader";
+import FiltersBar from "@/components/admin/FiltersBar";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { Agendamento, Barbeiro, Status } from "@/lib/adminApi";
+import { atualizarStatus, fetchAgendamentos, fetchBarbeiros, pingHealth } from "@/lib/adminApi";
+import { CalendarX2, LockKeyhole, Sparkles } from "lucide-react";
 
 function hojeISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/* ================= LOGIN ================= */
+function usePersistedSearchParams(barbeiroId: string, data: string) {
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (barbeiroId) params.set("barbeiro_id", barbeiroId);
+    if (data) params.set("data", data);
+    const qs = params.toString();
+    const nextUrl = qs ? `/admin?${qs}` : "/admin";
+    window.history.replaceState({}, "", nextUrl);
+  }, [barbeiroId, data]);
+}
 
 function AdminLogin({ onLogin }: { onLogin: (t: string) => void }) {
   const [token, setToken] = useState("");
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          padding: 24,
-          border: "1px solid rgba(255,255,255,.14)",
-          borderRadius: 12,
-          background: "rgba(0,0,0,.35)",
-          boxShadow: "0 12px 32px rgba(0,0,0,.35)",
-        }}
-      >
-        <h2 style={{ marginBottom: 12, fontSize: 20, fontWeight: 900 }}>Área do Barbeiro</h2>
-        <p style={{ marginBottom: 16, opacity: 0.8 }}>
-          Digite sua senha para acessar o painel de horários.
-        </p>
-        <input
-          type="password"
-          placeholder="Senha de acesso"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          style={{
-            width: "100%",
-            height: 42,
-            marginBottom: 12,
-            borderRadius: 8,
-            padding: "0 12px",
-            border: "1px solid rgba(255,255,255,.14)",
-            background: "rgba(0,0,0,.25)",
-            color: "#fff",
-          }}
-        />
-        <button
-          style={{
-            width: "100%",
-            height: 42,
-            fontWeight: 800,
-            borderRadius: 8,
-            background: "linear-gradient(120deg,#f97316,#c026d3)",
-            color: "#fff",
-            border: "none",
-          }}
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-b from-black via-[#0f0806] to-black px-4 py-12 text-amber-50">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(217,166,106,0.15),_transparent_45%)]" aria-hidden />
+      <Card className="relative w-full max-w-md space-y-6 border border-[#6e2317]/70 bg-black/60 p-8 shadow-2xl shadow-black/40">
+        <div className="space-y-2 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#d9a66a] to-[#8c4b2f] text-black shadow-lg">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
+          <h2 className="text-2xl font-black">Área do Barbeiro</h2>
+          <p className="text-sm text-amber-200/80">Digite a senha para acessar o painel de horários.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="token" className="text-amber-100">
+            Senha de acesso
+          </Label>
+          <Input
+            id="token"
+            type="password"
+            autoComplete="current-password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && token) onLogin(token);
+            }}
+            className="h-12 border-[#6e2317]/70 bg-black/60 text-amber-50"
+            placeholder="Informe o token do administrador"
+          />
+        </div>
+        <Button
+          disabled={!token}
           onClick={() => onLogin(token)}
+          className="h-12 w-full gap-2 bg-gradient-to-r from-[#d9a66a] to-[#8c4b2f] text-base font-semibold text-black shadow-lg hover:from-[#e6b778] hover:to-[#a05939]"
         >
           Entrar
-        </button>
-      </div>
+        </Button>
+      </Card>
     </div>
   );
 }
 
-/* ================= ADMIN ================= */
-
 export default function Admin() {
+  const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [token, setToken] = useState(localStorage.getItem("belarmino_admin_token") || "");
-  const [barbeiroId, setBarbeiroId] = useState(localStorage.getItem("belarmino_admin_barbeiro") || "");
-  const [data, setData] = useState(hojeISO());
-
+  const [barbeiroId, setBarbeiroId] = useState(searchParams.get("barbeiro_id") || "");
+  const [data, setData] = useState(searchParams.get("data") || hojeISO());
   const [barbeiros, setBarbeiros] = useState<Barbeiro[]>([]);
-  const [items, setItems] = useState<Agendamento[]>([]);
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [selected, setSelected] = useState<Agendamento | null>(null);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
+  const [online, setOnline] = useState<boolean | null>(null);
+  const requestIdRef = useRef(0);
 
-  /* ===== FORCE LOGIN ON FIRST VISIT ===== */
+  usePersistedSearchParams(barbeiroId, data);
 
+  /* ====== HEALTH ====== */
   useEffect(() => {
-    localStorage.removeItem("belarmino_admin_token");
-    localStorage.removeItem("belarmino_admin_barbeiro");
-    setToken("");
-    setBarbeiroId("");
+    let active = true;
+    const check = async () => {
+      try {
+        await pingHealth();
+        if (active) setOnline(true);
+      } catch {
+        if (active) setOnline(false);
+      }
+    };
+
+    check();
+    const id = setInterval(check, 25_000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
   }, []);
 
-  /* ===== AUTH ===== */
-
-  function login(t: string) {
+  /* ====== AUTH ====== */
+  const login = useCallback((t: string) => {
     localStorage.setItem("belarmino_admin_token", t);
     setToken(t);
-  }
+  }, []);
 
-  function logout() {
+  const logout = useCallback(() => {
     localStorage.removeItem("belarmino_admin_token");
-    localStorage.removeItem("belarmino_admin_barbeiro");
     setToken("");
-    setBarbeiroId("");
-    setItems([]);
-  }
+    setAgendamentos([]);
+    setSelected(null);
+  }, []);
 
-  /* ===== LOAD BARBEIROS ===== */
-
+  /* ====== LOAD BARBEIROS ====== */
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
 
-    fetch(`${API}/admin/barbeiros`, {
-      headers: { "x-admin-token": token },
-    })
-      .then(async (r) => {
-        if (r.status === 401) {
-          logout();
-          return [] as Barbeiro[];
-        }
-
-        if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          throw new Error(j?.mensagem || "Erro ao carregar barbeiros");
-        }
-
-        const j = await r.json();
-        return j.barbeiros || [];
+    fetchBarbeiros(token)
+      .then((lista) => {
+        if (!cancelled) setBarbeiros(lista);
       })
-      .then((lista) => setBarbeiros(lista))
-      .catch((e) => setErro(e.message || "Erro ao carregar barbeiros"));
-  }, [token]);
-
-  /* ===== LOAD AGENDA ===== */
-
-  async function carregar() {
-    if (!barbeiroId) return;
-
-    setErro("");
-    setLoading(true);
-
-    try {
-      const r = await fetch(
-        `${API}/admin/agendamentos?data=${data}&barbeiro_id=${barbeiroId}&token=${token}`
-      );
-
-      if (r.status === 401) {
-        logout();
-        return;
-      }
-
-      const j = await r.json();
-      if (!r.ok) throw new Error(j?.mensagem);
-
-      setItems(j.agendamentos || []);
-    } catch (e: any) {
-      setErro(e.message || "Erro");
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ===== UPDATE STATUS ===== */
-
-  async function atualizarStatus(id: number, status: Status) {
-    try {
-      const r = await fetch(`${API}/admin/agendamentos/${id}?token=${token}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+      .catch((e) => {
+        if (e?.message === "unauthorized") {
+          logout();
+          return;
+        }
+        if (!cancelled) setErro(e.message || "Erro ao carregar barbeiros");
       });
 
-      if (r.status === 401) {
+    return () => {
+      cancelled = true;
+    };
+  }, [logout, token]);
+
+  /* ====== LOAD AGENDAMENTOS ====== */
+  const carregarAgendamentos = useCallback(async () => {
+    if (!token || !barbeiroId || !data) return;
+    setErro("");
+    setLoading(true);
+    const currentId = ++requestIdRef.current;
+
+    try {
+      const lista = await fetchAgendamentos(token, barbeiroId, data);
+      if (requestIdRef.current !== currentId) return;
+      setAgendamentos(lista);
+    } catch (e: any) {
+      if (e?.message === "unauthorized") {
         logout();
         return;
       }
-
-      if (!r.ok) throw new Error();
-
-      setItems((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
-    } catch {
-      alert("Erro ao atualizar status");
+      if (requestIdRef.current !== currentId) return;
+      setErro(e.message || "Erro ao carregar agenda");
+      setAgendamentos([]);
+    } finally {
+      if (requestIdRef.current === currentId) setLoading(false);
     }
-  }
+  }, [barbeiroId, data, logout, token]);
 
-  const lista = useMemo(
-    () => [...items].sort((a, b) => (a.inicio > b.inicio ? 1 : -1)),
-    [items]
+  /* ====== ACTIONS ====== */
+  const handleStatusChange = useCallback(
+    async (id: number, status: Status) => {
+      setAgendamentos((prev) => prev.map((item) => (item.id === id ? { ...item, status } : item)));
+      try {
+        await atualizarStatus(token, id, status);
+        toast.success(`Status atualizado para ${status}`);
+        carregarAgendamentos();
+      } catch (e: any) {
+        if (e?.message === "unauthorized") {
+          logout();
+          return;
+        }
+        toast.error(e.message || "Erro ao atualizar status");
+        carregarAgendamentos();
+      }
+    },
+    [carregarAgendamentos, logout, token]
   );
 
-  /* ===== LOGIN GATE ===== */
+  const agendamentosOrdenados = useMemo(
+    () => [...agendamentos].sort((a, b) => (a.inicio > b.inicio ? 1 : -1)),
+    [agendamentos]
+  );
+
+  useEffect(() => {
+    if (barbeiroId && data && token) {
+      carregarAgendamentos();
+    }
+  }, [barbeiroId, carregarAgendamentos, data, token]);
 
   if (!token) {
     return <AdminLogin onLogin={login} />;
   }
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", padding: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, flex: 1 }}>Agenda do Barbeiro</h1>
-        <button onClick={logout} style={{ fontWeight: 700 }}>
-          Sair
-        </button>
-      </div>
+    <div className="min-h-screen bg-[#0b0503] text-amber-50">
+      <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 lg:px-8">
+        <AdminHeader online={online} onRefresh={carregarAgendamentos} onLogout={logout} />
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-        <input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-amber-200/70">
+          <Sparkles className="h-4 w-4 text-amber-300" />
+          <span>Visual moderno com ações rápidas e feedback imediato.</span>
+        </div>
 
-        <select
-          value={barbeiroId}
-          onChange={(e) => {
-            setBarbeiroId(e.target.value);
-            setItems([]);
-            localStorage.setItem("belarmino_admin_barbeiro", e.target.value);
+        <FiltersBar
+          barbeiroId={barbeiroId}
+          data={data}
+          barbeiros={barbeiros}
+          loading={loading}
+          onChangeBarbeiro={(id) => {
+            setBarbeiroId(id);
+            setAgendamentos([]);
           }}
-        >
-          <option value="">Selecione o barbeiro</option>
-          {barbeiros.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.nome}
-            </option>
-          ))}
-        </select>
+          onChangeData={setData}
+          onBuscar={carregarAgendamentos}
+        />
 
-        <button onClick={carregar} disabled={loading}>
-          {loading ? "Carregando..." : "Carregar"}
-        </button>
+        {erro ? (
+          <Card className="mt-4 border border-red-500/50 bg-red-500/10 p-4 text-red-100">
+            <p className="font-semibold">{erro}</p>
+          </Card>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-6 grid gap-3">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 rounded-xl bg-amber-50/5" />
+            ))}
+          </div>
+        ) : agendamentosOrdenados.length ? (
+          <div className="mt-6 space-y-4">
+            <AgendamentosTable
+              itens={agendamentosOrdenados}
+              onStatusChange={handleStatusChange}
+              onSelect={(agendamento) => setSelected(agendamento)}
+            />
+            <AgendamentosCards
+              itens={agendamentosOrdenados}
+              onStatusChange={handleStatusChange}
+              onSelect={(agendamento) => setSelected(agendamento)}
+            />
+          </div>
+        ) : (
+          <Card className="mt-8 border border-[#6e2317]/60 bg-black/60 p-8 text-center shadow-lg shadow-black/40">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-300">
+              <CalendarX2 className="h-6 w-6" />
+            </div>
+            <h3 className="mt-4 text-xl font-bold">Nenhum agendamento para este dia</h3>
+            <p className="mt-2 text-sm text-amber-200/80">
+              Use os filtros acima para escolher outra data ou barbeiro. Mantemos tudo sincronizado automaticamente.
+            </p>
+            <Button variant="secondary" onClick={carregarAgendamentos} className="mt-4">
+              Recarregar
+            </Button>
+          </Card>
+        )}
       </div>
 
-      {erro && <div style={{ color: "red", marginTop: 10 }}>{erro}</div>}
-
-      <AgendaVisual
-        agendamentos={lista}
-        onConfirmar={(id) => atualizarStatus(id, "confirmado")}
-        onCancelar={(id) => atualizarStatus(id, "cancelado")}
+      <AgendamentoDetailsDrawer
+        open={Boolean(selected)}
+        agendamento={selected}
+        onClose={() => setSelected(null)}
+        onStatusChange={handleStatusChange}
       />
     </div>
   );
