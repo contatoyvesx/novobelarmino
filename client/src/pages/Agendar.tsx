@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
@@ -57,43 +57,47 @@ export default function Agendar() {
 
   const servicosFormatados = servicosSelecionados.join(", ");
 
-  async function buscarHorarios(data = selectedDate) {
-    if (!data) return;
+  const buscarHorarios = useCallback(
+    async (data: string) => {
+      if (!data) return;
 
-    setLoading(true);
-    setMensagemErro("");
-    setMensagemSucesso("");
-    setSelectedHora("");
-    setHorarios([]);
+      setLoading(true);
+      setMensagemErro("");
+      setMensagemSucesso("");
+      setSelectedHora("");
+      setHorarios([]);
 
-    try {
-      const res = await fetch(
-        `${API_URL}/horarios?data=${encodeURIComponent(
-          data
-        )}&barbeiro_id=${BARBEIRO_ID}`,
-        { cache: "no-store" }
-      );
+      try {
+        const res = await fetch(
+          `${API_URL}/horarios?data=${encodeURIComponent(
+            data
+          )}&barbeiro_id=${BARBEIRO_ID}`,
+          { cache: "no-store" }
+        );
 
-      const json = await res.json();
-      const lista = Array.isArray(json) ? json : [];
+        const json = await res.json();
+        const lista = Array.isArray(json) ? json : [];
 
-      setHorarios(lista);
+        setHorarios(lista);
 
-      if (lista.length === 0) {
-        setMensagemErro("Nenhum horário disponível para esta data. Tente outro dia.");
+        if (lista.length === 0) {
+          setMensagemErro(
+            "Nenhum horário disponível para esta data. Tente outro dia."
+          );
+        }
+      } catch {
+        setMensagemErro("Erro ao buscar horários.");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setMensagemErro("Erro ao buscar horários.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+    [API_URL, BARBEIRO_ID]
+  );
 
   // 🔥 BUSCA AUTOMÁTICA — SEM BOTÃO, SEM DUPLICAÇÃO
   useEffect(() => {
-    buscarHorarios(selectedDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
+    void buscarHorarios(selectedDate);
+  }, [buscarHorarios, selectedDate]);
 
   async function confirmarAgendamento() {
     if (
